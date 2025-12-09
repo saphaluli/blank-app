@@ -33,6 +33,37 @@ st.write('Through the use of data analysis and different AI/machine learning app
 'aims to quantify which baseline factors are associated with earlier developments of CVD, and whether this ' \
 ' risk can be predicted accurately through these factors.')
 
+st.title('Methodology: Preperation of our data')
+st.subheader('Data source')
+st.write('The data used for our analysis and machine learning models are sourced from the Framingham Heart Study'
+' (2, add reference to the datset). Add more stuff about the dataset, when, what is measured etc.')
+# This is the second parapgraph about which variables we selected and why.
+st.subheader('Data selection')
+st.write('We selected the following features based on.... data leakage. ')
+"""
+- Age
+- Sex (male, female)
+- Systolic blood pressure
+- Diastolic blood pressure
+- Total cholesterol
+- BMI
+- Smoking status (smoker, non-smoker)
+- Cigaretted smoked per day
+- Diabetes (yes, no)
+- Glucose levels
+- Taking blood pressure medication (yes/no)
+- Is hypertensive (yes/no)
+- Heart rate
+"""
+st.write('As the target variable CVD was entered retroactively in the dataset (if a The target variable was created using the following logic:')
+
+# 1. Load dataset from link
+cvd = pd.read_csv('https://raw.githubusercontent.com/LUCE-Blockchain/Databases-for-teaching/refs/heads/main/Framingham%20Dataset.csv')
+cols = [
+    "AGE", "SEX", "SYSBP", "DIABP", "TOTCHOL", "BMI",
+    "CURSMOKE", "CIGPDAY", "DIABETES", "GLUCOSE",
+    "BPMEDS", "PREVHYP", "HEARTRTE", "CVD", "TIMECVD"
+    ] #PREVCHD, etc. not includes as would introduce data leakage since these are apart of CVD
 st.title('References')
 st.write(' 1. World Health Organisation (2025), "Cardiovascular diseases (CVDs)", pls check how to do manual reference https://www.who.int/news-room/fact-sheets/detail/cardiovascular-diseases-(cvds)')
 
