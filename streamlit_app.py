@@ -3,6 +3,7 @@ from IPython.display import display
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import ipywidgets as widgets
 from scipy import stats
 from scipy.stats import levene
@@ -60,7 +61,16 @@ st.write('We selected the following features based on.... data leakage. ')
 - Is hypertensive (yes/no)
 - Heart rate
 """
-st.write('As the target variable CVD was entered retroactively in the dataset (if a The target variable was created using the following logic:')
+st.write('As the target variable CVD was entered retroactively in the dataset'
+' (if a person developed CVD later in life, all previous entries were marked as having CVD.' \
+' Therefore, our target variable was created using the following logic:')
+"""
+- If a person developed CVD within 6 years, they are marked as developing CVD early
+- If a person developed CVD within 24 years (study duration), they are marked as developing CVD late.
+- If a person did not develop CVD within the study period, they are marked as never developing CVD.
+"""
+### TO SEE THE RELEVANT CODE PLEASE CHECK AFTER THE PREPROCESSING PART IS FINISHED
+
 
 # 1. Load dataset from link
 cvd = pd.read_csv('https://raw.githubusercontent.com/LUCE-Blockchain/Databases-for-teaching/refs/heads/main/Framingham%20Dataset.csv')
@@ -224,7 +234,51 @@ st.write('Having skewed data means our data is non-normal. Normality is a core a
 ' tests, as well as in many machine learning models (especially those utilising regression). Using non-normal' \
 ' data may therefore decrease performance and/or lead to incorrect statistical conclusions.')
 st.write('To mediate this issue, we applied log-transformations to all continuous variables determined' \
-' to be right-skewed. Skewness was determined. Below is an interactive module which ?!?!?!??!?!')
+' to be right-skewed. Skewness was determined using Shapiro-Wilk normality tests.')
+st.write('Below is a summary of the normality tests, including variable name, p-value and type of log' \
+' transformation applied (log, log1p (handles 0)).')
+#Normalisation functions
+def normalize(df): # Only to be run on non-normal columns
+    data_nona = df.dropna()
+    skewness = stats.skew(data_nona)
+    df_normalized = df.copy()
+    if skewness > 0:  # Right-skewed (0 would mean no skew, lower than 0 is left skew)
+        #Log transformation (with handling of zero-values)
+        if (data_nona > 0).all():
+            df_normalized = np.log(df)
+            st.write(f"      -> Applied log transformation")
+        else:
+            df_normalized = np.log1p(df)
+            st.write(f"      -> Applied log1p transformation")
+
+    return df_normalized
+
+def normality_check_and_fix(df):
+    df_normalized = df.copy()
+    print("Shapiro-Wilk Normality Test")
+
+    for column in df.columns:
+      if len(df[column].unique()) > 5: #Just checks that it's not a categorical variable:
+        data_nona = df[column].dropna()
+        stat, p_value = stats.shapiro(data_nona)
+
+        if p_value > 0.05:
+            st.write(f"{column}: Normal (p={p_value:.4f})")
+        else:
+            st.write(f"{column}: Not Normal (p={p_value:.4f})")
+            df_normalized[column] = normalize(df[column])
+    #print(Style.RESET_ALL)
+    return df_normalized;
+
+cols_norm_test = [
+    "AGE", "SEX", "SYSBP", "DIABP", "TOTCHOL", "BMI",
+    "CURSMOKE", "CIGPDAY", "DIABETES", "GLUCOSE",
+    "BPMEDS", "PREVHYP", "HEARTRTE", "CVD"
+]
+cvd_imputed_normalized = normality_check_and_fix(cvd_imputed[cols_norm_test])
+st.caption('Summary of normality tests results. Abbreviations are: SYSBP = systolic blood pressure, DIABP = diastolic blood pressure,' \
+' TOTCHOL = total cholesterol, CIGPDAY = cigarettes smoked per day, GLUCOSE = glucose levels, HEARTRTE = heart rate.')
+
 
 # Interactive module showing difference between original and normalised data
 log_vars = ['SYSBP','DIABP','TOTCHOL','GLUCOSE','BMI','CIGPDAY','HEARTRTE']
@@ -245,7 +299,7 @@ def log_transform_visualization(variable):
 
     # Original distribution
     #plt.subplot(1,2,1)
-    sns.histplot(data, bins=30, kde=True, color='pink', edgecolor='red', ax=ax1)
+    sns.histplot(data, bins=30, kde=True, color='plum', edgecolor='purple', ax=ax1)
     ax1.set_title(f"Original Distribution of {variable}")
     ax1.set_xlabel(variable)
     ax1.set_ylabel("Frequency")
@@ -257,10 +311,46 @@ def log_transform_visualization(variable):
     ax2.set_xlabel(f"{transform_name}({variable})")
     ax2.set_ylabel("Frequency")
 
+    return fig
+
 
 #Dropdown menu
 dropdown = st.selectbox('Select', ['SYSBP','DIABP','TOTCHOL','GLUCOSE','BMI','CIGPDAY','HEARTRTE'])
 st.pyplot(log_transform_visualization(dropdown)) #log_transform_visualization(dropdown)
+
+st.caption('Figure 2: Comparison of variable distribution before and after log-transformation.')
+
+
+### DEFINING OUTCOME VARIABLE
+
+cvd_imputed_normalized['CVD_MULTI'] = 1
+cvd_imputed_normalized.loc[cvd_imputed.TIMECVD > 2190, 'CVD_MULTI'] = 2
+cvd_imputed_normalized.loc[cvd_imputed.TIMECVD == 8766, 'CVD_MULTI'] = 0
+
+
+st.title('Population characteristics and outcome variable description')
+
+st.subheader('Outcome variable proportions')
+st.write('As stated in our data preperation, our outcome variable ahs the following subcategories:')
+"""
+- 0 = never developed CVD (within study duration)
+- 1 = develoepd CVD early (within 6 years of baseline measurement)
+- 2 = developed CVD later (within study length of 24 years)"""
+# Proportions of our outcome variable
+fig, ax = plt.subplots()
+counts = cvd_imputed['CVD_MULTI'].value_counts().sort_index() / cvd_imputed_normalized.shape[0]
+counts.plot(kind='bar', ax=ax, color=['lightgreen', 'lightblue', 'plum'])
+ax.set_xlabel('CVD Development Category')
+
+st.pyplot(fig)
+
+st.caption('Figure 3: Proportions of outcome variable categories. 0 = never developed CVD, 1 = developed CVD early (within 6 years)' \
+', 2 = developed CVD late (within 24 years).')
+
+st.subheader('Population characteristics')
+st.write('Below are a summary of basic descriptive statistics. Please note that all descriptive statistics are ')
+#descriptive statistics numerical variables
+cvd_imputed[numeric_vars].describe().T
 
 
 st.title('References')

@@ -1,4 +1,5 @@
 streamlit
+seaborne
 numpy
 pandas
 matplotlib.pyplot
