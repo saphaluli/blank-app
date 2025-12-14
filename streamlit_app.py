@@ -323,10 +323,12 @@ st.caption('Figure 2: Comparison of variable distribution before and after log-t
 
 ### DEFINING OUTCOME VARIABLE
 
-cvd_imputed_normalized['CVD_MULTI'] = 1
-cvd_imputed_normalized.loc[cvd_imputed.TIMECVD > 2190, 'CVD_MULTI'] = 2
-cvd_imputed_normalized.loc[cvd_imputed.TIMECVD == 8766, 'CVD_MULTI'] = 0
+cvd_imputed['CVD_MULTI'] = 1
+cvd_imputed.loc[cvd_imputed.TIMECVD > 2190, 'CVD_MULTI'] = 2
+cvd_imputed.loc[cvd_imputed.TIMECVD == 8766, 'CVD_MULTI'] = 0
 
+#also add for cvd_imputed_normalized
+cvd_imputed_normalized['CVD_MULTI'] = cvd_imputed['CVD_MULTI']
 
 st.title('Population characteristics and outcome variable description')
 
@@ -338,7 +340,7 @@ st.write('As stated in our data preperation, our outcome variable ahs the follow
 - 2 = developed CVD later (within study length of 24 years)"""
 # Proportions of our outcome variable
 fig, ax = plt.subplots()
-counts = cvd_imputed['CVD_MULTI'].value_counts().sort_index() / cvd_imputed_normalized.shape[0]
+counts = cvd_imputed_normalized['CVD_MULTI'].value_counts().sort_index() / cvd_imputed.shape[0]
 counts.plot(kind='bar', ax=ax, color=['lightgreen', 'lightblue', 'plum'])
 ax.set_xlabel('CVD Development Category')
 
@@ -350,6 +352,74 @@ st.caption('Figure 3: Proportions of outcome variable categories. 0 = never deve
 st.subheader('Population characteristics')
 st.write('Below are a summary of basic descriptive statistics. Please note that all descriptive statistics are taken on the imputed, but not log-transformed dataset')
 
+#TABEL 1 - Numerical descriptive statistics
+#adding median as well
+st.caption('Table2: Descriptive statistics for numerical variables.')
+numeric_vars = ['AGE','SYSBP','DIABP','TOTCHOL','BMI','CIGPDAY','GLUCOSE','HEARTRTE','TIMECVD']
+desc = cvd_imputed[numeric_vars].describe().T.drop(labels='count', axis=1) #Count stays the same so not needed
+desc['median'] = cvd_imputed[numeric_vars].median()
+st.write(desc)
+
+st.write('From the mean ')
+st.caption('Table 3: Descriptive statistics for categorical variables.')
+#TABEL 2 - Categorical descriptive statistics
+def categorical_summary(df, column, labels=None):
+    summary = df[column].value_counts(normalize=True).rename("Proportion") * 100
+    summary = summary.reset_index()
+    summary.columns = [column, "Percentage (%)"]
+
+    if labels:
+        summary[column] = summary[column].map(labels)
+
+    summary["Percentage (%)"] = summary["Percentage (%)"].round(1)
+    summary.columns = ['TYPE', "Percentage (%)"]
+    return summary
+
+sex_table = categorical_summary(
+    cvd_imputed,
+    "SEX",
+    labels={1: "Male", 2: "Female"}
+)
+
+smoke_table = categorical_summary(
+    cvd_imputed,
+    "CURSMOKE",
+    labels={0: "Non-smoker", 1: "Current smoker"}
+)
+
+diabetes_table = categorical_summary(
+    cvd_imputed,
+    "DIABETES",
+    labels={0: "No diabetes", 1: "Diabetes"}
+)
+
+hypertension_table = categorical_summary(
+    cvd_imputed,
+    "PREVHYP",
+    labels={0: "No hypertension", 1: "Hypertension"}
+)
+
+bpmeds_table = categorical_summary(
+    cvd_imputed,
+    "BPMEDS",
+    labels={0: "No BP medication", 1: "BP medication"}
+)
+
+categorical_tables = {
+    "Sex": sex_table,
+    "Smoking status": smoke_table,
+    "Diabetes": diabetes_table,
+    "Hypertension": hypertension_table,
+    "BP medication": bpmeds_table
+}
+##Trying to add all tables together, I know it's a bit messy but I'm adjusting other's code
+
+full_table = pd.DataFrame()
+
+for title, table in categorical_tables.items():
+    full_table = pd.concat([full_table, table])
+
+st.write(full_table)
 
 st.title('References')
 st.write(' 1. World Health Organisation (2025), "Cardiovascular diseases (CVDs)", pls check how to do manual reference https://www.who.int/news-room/fact-sheets/detail/cardiovascular-diseases-(cvds)')
