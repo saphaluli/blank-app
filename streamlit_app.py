@@ -333,10 +333,10 @@ cvd_imputed_normalized['CVD_MULTI'] = cvd_imputed['CVD_MULTI']
 st.title('Population characteristics and outcome variable description')
 
 st.subheader('Outcome variable proportions')
-st.write('As stated in our data preperation, our outcome variable ahs the following subcategories:')
+st.write('As stated in our data preperation, our outcome variable has the following subcategories:')
 """
 - 0 = never developed CVD (within study duration)
-- 1 = develoepd CVD early (within 6 years of baseline measurement)
+- 1 = developed CVD early (within 6 years of baseline measurement)
 - 2 = developed CVD later (within study length of 24 years)"""
 # Proportions of our outcome variable
 fig, ax = plt.subplots()
@@ -354,13 +354,13 @@ st.write('Below are a summary of basic descriptive statistics. Please note that 
 
 #TABEL 1 - Numerical descriptive statistics
 #adding median as well
+st.write('Table 2 summarizes the central tendency and dispersion of the main continuous variables in the cohort.') 
 st.caption('Table2: Descriptive statistics for numerical variables.')
 numeric_vars = ['AGE','SYSBP','DIABP','TOTCHOL','BMI','CIGPDAY','GLUCOSE','HEARTRTE','TIMECVD']
 desc = cvd_imputed[numeric_vars].describe().T.drop(labels='count', axis=1) #Count stays the same so not needed
 desc['median'] = cvd_imputed[numeric_vars].median()
 st.write(desc)
 
-st.write('From the mean ')
 st.caption('Table 3: Descriptive statistics for categorical variables.')
 #TABEL 2 - Categorical descriptive statistics
 def categorical_summary(df, column, labels=None):
@@ -421,6 +421,63 @@ for title, table in categorical_tables.items():
 
 st.write(full_table)
 
+st.subheader("Visual exploration")
+
+# Histogram AGE
+st.markdown("**Age distribution**")
+fig, ax = plt.subplots()
+ax.hist(cvd_imputed["AGE"], bins=20)
+ax.set_title("Age Distribution")
+ax.set_xlabel("Age")
+ax.set_ylabel("Frequency")
+st.pyplot(fig)
+st.caption("Figure 4: Histogram of age in the cohort.")
+
+# Boxplot SYSBP by CVD class
+st.markdown("**Systolic blood pressure across CVD classes**")
+fig, ax = plt.subplots(figsize=(8, 6))
+classes = sorted(cvd_imputed["CVD_MULTI"].unique())
+groups = [cvd_imputed.loc[cvd_imputed["CVD_MULTI"] == c, "SYSBP"] for c in classes]
+ax.boxplot(groups, labels=classes)
+ax.set_title("SYSBP Across CVD Classes")
+ax.set_xlabel("CVD Class")
+ax.set_ylabel("SYSBP (mmHg)")
+st.pyplot(fig)
+st.caption("Figure 5: Boxplot of systolic blood pressure by CVD_MULTI class.")
+
+# Boxplot AGE by CVD class
+st.markdown("**Age across CVD classes**")
+fig, ax = plt.subplots(figsize=(8, 6))
+groups_age = [cvd_imputed.loc[cvd_imputed["CVD_MULTI"] == c, "AGE"] for c in classes]
+ax.boxplot(groups_age, labels=classes)
+ax.set_title("Age Across CVD Classes")
+ax.set_xlabel("CVD Class")
+ax.set_ylabel("Age (years)")
+st.pyplot(fig)
+st.caption("Figure 6: Boxplot of age by CVD_MULTI class.")
+
+st.subheader("Interactive visualisation")
+
+min_age = st.slider("Minimum age",
+                    int(cvd_imputed["AGE"].min()),
+                    int(cvd_imputed["AGE"].max()),
+                    50)
+
+filtered = cvd_imputed[cvd_imputed["AGE"] >= min_age]
+
+fig, ax = plt.subplots()
+filtered["CVD_MULTI"].value_counts().sort_index().plot(kind="bar", ax=ax)
+ax.set_title(f"CVD_MULTI distribution for AGE ≥ {min_age}")
+st.pyplot(fig)
+st.caption("Figure 7: Age slider per CVD classes")
+
+st.subheader("Interpretation")
+st.write(
+    "The descriptive and visual analyses confirm known epidemiological patterns. "
+    "Participants who developed CVD tend to be older and exhibit higher levels of established "
+    "cardiovascular risk factors, such as elevated systolic blood pressure. "
+    "The interactive visualisations further highlight the strong association between age and CVD risk."
+)
 st.title('References')
 st.write(' 1. World Health Organisation (2025), "Cardiovascular diseases (CVDs)", pls check how to do manual reference https://www.who.int/news-room/fact-sheets/detail/cardiovascular-diseases-(cvds)')
 
