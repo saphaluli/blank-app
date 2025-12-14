@@ -348,9 +348,7 @@ st.caption('Figure 3: Proportions of outcome variable categories. 0 = never deve
 ', 2 = developed CVD late (within 24 years).')
 
 st.subheader('Population characteristics')
-st.write('Below are a summary of basic descriptive statistics. Please note that all descriptive statistics are ')
-#descriptive statistics numerical variables
-cvd_imputed[numeric_vars].describe().T
+st.write('Below are a summary of basic descriptive statistics. Please note that all descriptive statistics are taken on the imputed, but not log-transformed dataset')
 
 
 st.title('References')
