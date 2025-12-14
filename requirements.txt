@@ -4,3 +4,7 @@ pandas
 matplotlib.pyplot
 matplotlib
 scikit-learn
+IPython
+scipy
+streamlit[charts]
+ipywidgets

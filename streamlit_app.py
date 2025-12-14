@@ -3,6 +3,7 @@ from IPython.display import display
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import ipywidgets as widgets
 from scipy import stats
 from scipy.stats import levene
 import sklearn
@@ -100,6 +101,7 @@ def check_missing(df, col):
     return df_misVariables
 
 ranked_df_missing_value = check_missing(cvd[cols], cols)
+st.caption('Table 1: Summary of missingness per variable in descending order.')
 
 st.write('We imputed the following variables: ')
 
@@ -183,6 +185,82 @@ for col, (low, high) in erroneous_checks.items():
     if len(invalid) > 0:
       st.write(f"{col}: has {len(invalid)} values not in accordance with biology.")
 
+st.write('All erroneous datapoints were winsorised to the closest biologically plausible values as indicated'
+' by the threshholds described above.' \
+' It should be noted that these values are still quite extreme and may have underlying issues in measurement,' \
+' protocol or other. ')
+
+#Winsorising
+#Utilising threshholds described in text
+cvd_imputed.loc[cvd_imputed['SYSBP'] > 250, 'SYSBP'] = 250
+cvd_imputed.loc[cvd_imputed['DIABP'] < 40, 'DIABP'] = 40
+cvd_imputed.loc[cvd_imputed['DIABP'] > 120, 'DIABP'] = 120
+cvd_imputed.loc[cvd_imputed['TOTCHOL'] > 500, 'TOTCHOL'] = 500
+cvd_imputed.loc[cvd_imputed['GLUCOSE'] > 400, 'GLUCOSE'] = 400
+cvd_imputed.loc[cvd_imputed['BMI'] > 55, 'BMI'] = 55
+cvd_imputed.loc[cvd_imputed['HEARTRTE'] > 200, 'HEARTRTE'] = 200
+cvd_imputed.loc[cvd_imputed['CIGPDAY']> 80, 'CIGPDAY'] = 80
+
+
+
+st.subheader('Outliers and normality checks')
+st.write('As we are working with biological data, our data will initially show many outliers' \
+' when using outlier metrics like IQR or Z-score. This is due to how biological data tends to be' \
+' right-skewed, especially when including diseased populations (i.e. hypertension).')
+st.write('Below is an example of this phenomenon using systolic blood pressure:')
+
+#making the figure
+
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.boxplot(cvd_imputed['SYSBP'], vert=False)
+ax.set_title('Boxplot of Systolic Blood Pressure')
+ax.set_xlabel('Systolic Blood Pressure (mmHg)')
+st.pyplot(fig)
+st.caption('Figure 1: Boxplot of Systolic Blood Pressure. Circles indicate datapoints greater than 1.5*IQR')
+"""
+**Why is this important?**
+"""
+st.write('Having skewed data means our data is non-normal. Normality is a core assumption in many statistical' \
+' tests, as well as in many machine learning models (especially those utilising regression). Using non-normal' \
+' data may therefore decrease performance and/or lead to incorrect statistical conclusions.')
+st.write('To mediate this issue, we applied log-transformations to all continuous variables determined' \
+' to be right-skewed. Skewness was determined. Below is an interactive module which ?!?!?!??!?!')
+
+# Interactive module showing difference between original and normalised data
+log_vars = ['SYSBP','DIABP','TOTCHOL','GLUCOSE','BMI','CIGPDAY','HEARTRTE']
+
+
+def log_transform_visualization(variable):
+
+    data = cvd_imputed[variable].dropna()
+    transformed = cvd_imputed_normalized[variable].dropna()
+
+    # decide whether log or log1p was used
+    if (data > 0).all():
+      transform_name = "log"
+    else:
+      transform_name = "log1p"
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12,5))
+
+    # Original distribution
+    #plt.subplot(1,2,1)
+    sns.histplot(data, bins=30, kde=True, color='pink', edgecolor='red', ax=ax1)
+    ax1.set_title(f"Original Distribution of {variable}")
+    ax1.set_xlabel(variable)
+    ax1.set_ylabel("Frequency")
+
+    # Transformed distribution
+    #plt.subplot(1,2,2)
+    sns.histplot(transformed, bins=30, kde=True, color='lightblue', edgecolor='blue', ax=ax2)
+    ax2.set_title(f"{transform_name} Transformed Distribution of {variable}")
+    ax2.set_xlabel(f"{transform_name}({variable})")
+    ax2.set_ylabel("Frequency")
+
+
+#Dropdown menu
+dropdown = st.selectbox('Select', ['SYSBP','DIABP','TOTCHOL','GLUCOSE','BMI','CIGPDAY','HEARTRTE'])
+st.pyplot(log_transform_visualization(dropdown)) #log_transform_visualization(dropdown)
 
 
 st.title('References')
