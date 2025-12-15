@@ -338,6 +338,7 @@ st.write('As stated in our data preperation, our outcome variable has the follow
 - 0 = never developed CVD (within study duration)
 - 1 = developed CVD early (within 6 years of baseline measurement)
 - 2 = developed CVD later (within study length of 24 years)"""
+
 # Proportions of our outcome variable
 fig, ax = plt.subplots()
 counts = cvd_imputed_normalized['CVD_MULTI'].value_counts().sort_index() / cvd_imputed.shape[0]
@@ -423,6 +424,8 @@ st.write(full_table)
 
 st.subheader("Visual exploration")
 
+st.write("The histogram below shows the age distribution of the study population.")
+
 # Histogram AGE
 st.markdown("**Age distribution**")
 fig, ax = plt.subplots()
@@ -432,6 +435,8 @@ ax.set_xlabel("Age")
 ax.set_ylabel("Frequency")
 st.pyplot(fig)
 st.caption("Figure 4: Histogram of age in the cohort.")
+
+st.write("The boxplot below compares systolic blood pressure across the three CVD outcome classes.") 
 
 # Boxplot SYSBP by CVD class
 st.markdown("**Systolic blood pressure across CVD classes**")
@@ -445,6 +450,8 @@ ax.set_ylabel("SYSBP (mmHg)")
 st.pyplot(fig)
 st.caption("Figure 5: Boxplot of systolic blood pressure by CVD_MULTI class.")
 
+st.write("Age distributions are compared across CVD outcome classes to illustrate age-related differences.")
+
 # Boxplot AGE by CVD class
 st.markdown("**Age across CVD classes**")
 fig, ax = plt.subplots(figsize=(8, 6))
@@ -456,7 +463,8 @@ ax.set_ylabel("Age (years)")
 st.pyplot(fig)
 st.caption("Figure 6: Boxplot of age by CVD_MULTI class.")
 
-st.subheader("Interactive visualisation")
+
+st.write("The interactive plot below allows users to explore how the distribution of CVD changes when restricting the cohort to older individuals.")
 
 min_age = st.slider("Minimum age",
                     int(cvd_imputed["AGE"].min()),
@@ -470,6 +478,41 @@ filtered["CVD_MULTI"].value_counts().sort_index().plot(kind="bar", ax=ax)
 ax.set_title(f"CVD_MULTI distribution for AGE ≥ {min_age}")
 st.pyplot(fig)
 st.caption("Figure 7: Age slider per CVD classes")
+
+# Select relevant variables for correlation analysis
+corr_vars = [
+    "AGE",
+    "SYSBP",
+    "DIABP",
+    "BMI",
+    "TOTCHOL",
+    "GLUCOSE",
+    "HEARTRTE",
+    "CVD_MULTI"
+]
+
+corr = cvd_imputed_normalized[corr_vars].corr()
+
+st.write(
+    "The correlation matrix below illustrates associations between age, major cardiovascular risk factors, "
+    "and the multiclass CVD outcome. This analysis supports the choice of age as a key variable for interactive exploration."
+)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+sns.heatmap(
+    corr,
+    annot=True,
+    cmap="coolwarm",
+    center=0,
+    fmt=".2f",
+    linewidths=0.5,
+    ax=ax
+)
+st.pyplot(fig)
+
+st.caption(
+    "Figure 8: Correlation matrix of selected cardiovascular risk factors and the CVD outcome."
+)
 
 st.subheader("Interpretation")
 st.write(
