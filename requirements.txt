@@ -3,8 +3,6 @@ seaborne
 numpy
 pandas
 matplotlib
-matplotlib.pyplot
-matplotlib
 scikit-learn
 IPython
 scipy
