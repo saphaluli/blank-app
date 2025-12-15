@@ -61,14 +61,24 @@ st.write('We selected the following features based on.... data leakage. ')
 - Is hypertensive (yes/no)
 - Heart rate
 """
-st.write('As the target variable CVD was entered retroactively in the dataset'
-' (if a person developed CVD later in life, all previous entries were marked as having CVD.' \
-' Therefore, our target variable was created using the following logic:')
-"""
-- If a person developed CVD within 6 years, they are marked as developing CVD early
-- If a person developed CVD within 24 years (study duration), they are marked as developing CVD late.
-- If a person did not develop CVD within the study period, they are marked as never developing CVD.
-"""
+st.write(
+    "The original CVD variable in the dataset is coded retrospectively, meaning that participants "
+    "who developed cardiovascular disease at any point during follow-up were marked as having CVD "
+    "for all earlier records. As a result, this variable does not distinguish between early and late "
+    "disease onset. To better capture differences in timing of CVD development, a multiclass outcome "
+    "variable was constructed using the following definition:"
+)
+
+st.markdown("""
+- **0**: No CVD during the study follow-up  
+- **1**: Early CVD onset (within 6 years of baseline)  
+- **2**: Late CVD onset (after 6 years, up to 24 years)
+""")
+
+st.write(
+    "Alternative thresholds were explored during model development, but a 6-year cutoff was retained "
+    "as it provided a balance between class distribution and model stability."
+)
 ### TO SEE THE RELEVANT CODE PLEASE CHECK AFTER THE PREPROCESSING PART IS FINISHED
 
 
@@ -521,6 +531,339 @@ st.write(
     "cardiovascular risk factors, such as elevated systolic blood pressure. "
     "The interactive visualisations further highlight the strong association between age and CVD risk."
 )
+
+st.title('Data analysis')
+
+#Prepare data for modeling 
+cvd_imputed_normalized = cvd_imputed_normalized.drop(labels=["TIMECVD", "CVD"], axis=1, errors='ignore')
+
+def splitLabels(df, target):
+    X = df.loc[:, df.columns != target]
+    y = df[target]
+    return X, y
+
+X, y = splitLabels(cvd_imputed_normalized, target="CVD_MULTI") 
+
+st.subheader("Feature engineering")
+
+#Anove feature importance
+from sklearn.feature_selection import SelectKBest, f_classif
+
+feature_names = X.columns.tolist()
+
+best_features = SelectKBest(score_func=f_classif, k="all")
+fit = best_features.fit(X, y)
+
+featureScores = pd.DataFrame(
+    data=fit.scores_,
+    index=feature_names,
+    columns=["ANOVA Score"]
+).sort_values(by="ANOVA Score", ascending=False)
+
+fig, ax = plt.subplots(figsize=(6, 6))
+sns.heatmap(
+    featureScores,
+    annot=True,
+    linewidths=0.4,
+    linecolor="black",
+    fmt=".2f",
+    ax=ax
+)
+ax.set_title("Selection of Features by ANOVA score")
+st.pyplot(fig)
+
+#Interactive feature selection 
+st.subheader("Interactive feature selection")
+
+dropdown_featureselection = st.selectbox("Select", ["Threshold", "Top values"], index=1)
+
+if dropdown_featureselection == "Threshold":
+    threshold = st.slider(
+        "Please select threshold value",
+        0.0,
+        float(featureScores["ANOVA Score"].max()),
+        30.0
+    )
+    selected_features = featureScores[featureScores["ANOVA Score"] >= threshold].index.tolist()
+else:
+    top_k = st.slider(
+        "Please select the amount of top features",
+        1,
+        len(featureScores),
+        10
+    )
+    selected_features = featureScores.head(top_k).index.tolist()
+
+st.write(f"Selected features ({len(selected_features)}):")
+st.write(selected_features)
+
+if len(selected_features) == 0: 
+    st.warning("no features selected. Lower the threshold or choose top values.")
+    st.stop()
+
+# Create X/y based on selected features
+X_selected = cvd_imputed_normalized[selected_features]
+y_selected = cvd_imputed_normalized["CVD_MULTI"]
+
+
+#Result table 
+resultsTable = pd.DataFrame(columns=[
+    "Model", "Accuracy", "F1 Score", "Precision", "Recall", "ROC_AUC", "ROC", "cm"
+])
+
+def modelResults(model, accuracy, f1, precision, recall, roc_auc, roc_cur, cm):
+    model_name = str(model).split("(")[0]
+    st.write(f" Model {model_name} evaluated.")
+    resultsTable.loc[len(resultsTable)] = [model_name, accuracy, f1, precision, recall, roc_auc, roc_cur, cm]
+
+
+#Logistic regression
+def trainLogReg(X, y, max_iter=1000, test_size=0.2, class_weight='balanced'):
+
+  # Step 1: we use the same train-test split as above
+  train_X, test_X, train_y, test_y = train_test_split(
+      X, y, test_size=test_size, stratify=y, random_state=380
+  )
+
+  from sklearn.preprocessing import MinMaxScaler, label_binarize
+  min_max_scaler = MinMaxScaler()
+  train_X = min_max_scaler.fit_transform(train_X)
+  test_X = min_max_scaler.transform(test_X)
+
+  # Step 2: Pick the algorithm
+  logreg = LogisticRegression(max_iter=max_iter, class_weight=class_weight)
+
+  # Step 3: Train the classifier
+  logreg = logreg.fit(train_X, train_y)
+
+  # Step 4: Make a prediction
+  y_pred = logreg.predict(test_X)
+  y_pred_proba = logreg.predict_proba(test_X)
+
+  # Cross validation
+  cv_value = 5
+  cv_scores = cross_val_score(logreg, train_X, train_y, scoring='accuracy', cv=cv_value)
+
+  # Step 5: Evaluate the prediction
+  st.write('Used model is:', logreg)
+  st.text(classification_report(test_y, y_pred))
+  st.write(
+      f"Cross validation score: {cv_scores.mean():.2f} "
+      f"± {cv_scores.std():.2f}"
+  )
+
+  cm = confusion_matrix(test_y, y_pred, normalize='true')
+
+  fig, ax = plt.subplots()
+  disp = ConfusionMatrixDisplay(
+      confusion_matrix=cm,
+      display_labels=logreg.classes_
+  )
+  disp.plot(ax=ax)
+  st.pyplot(fig)
+
+  # Metrics
+  average = 'macro'
+  multi_class = 'ovo'
+
+  accuracy = accuracy_score(test_y, y_pred)
+  f1 = f1_score(test_y, y_pred, average=average)
+  precision = precision_score(test_y, y_pred, average=average, zero_division=0)
+  recall = recall_score(test_y, y_pred, average=average, zero_division=0)
+  roc_auc = roc_auc_score(
+      test_y, y_pred_proba,
+      average=average,
+      multi_class=multi_class
+  )
+
+  y_test_binary = label_binarize(test_y, classes=logreg.classes_)
+  roc_cur = roc_curve(y_test_binary.ravel(), y_pred_proba.ravel())
+
+  modelResults(logreg, accuracy, f1, precision, recall, roc_auc, roc_cur, cm)
+
+#KNN
+def trainKNN(X, y, neighbors=5, test_size=0.2):
+  # Step 1: we use the same train-test split as above
+  train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=test_size, stratify=y, random_state=380)
+
+  from sklearn.preprocessing import label_binarize
+
+  # Step 2: Pick the algorithm
+  knn = KNeighborsClassifier(n_neighbors=neighbors, weights='uniform')
+
+  # Step 3: Train the classifier
+  knn = knn.fit(train_X, train_y)
+
+  # Step 4: Make a prediction
+  y_pred = knn.predict(test_X)
+  y_pred_proba = knn.predict_proba(test_X) #For ROC curve specifically
+
+  #Cross validation:
+  cv_value = 5
+  cv_scores = cross_val_score(knn, train_X, train_y, scoring='accuracy', cv=cv_value)
+
+  # Step 4: Make a prediction
+  prediction = cross_val_predict(knn, test_X, test_y, cv=cv_value)
+
+  # Step 5: Evaluate the prediction
+  st.write('Used model is: {}-----------'.format(knn))
+  st.write('classifier stored as "knn"')
+  st.text(classification_report(test_y, y_pred, zero_division=0))
+  st.write(f"Cross validation score: {cv_scores.mean().round(2)} accuracy with a standard deviation of {cv_scores.std().round(2)}")
+
+  cm = confusion_matrix(y_true=test_y, y_pred=y_pred, normalize='true')
+
+  fig, ax = plt.subplots()
+  disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=knn.classes_)
+  disp.plot(ax=ax)
+  st.pyplot(fig)
+
+  #Make extra section for table that contains all important information for AUC curve
+  average='macro'
+  multi_class='ovo'
+
+  accuracy = accuracy_score(test_y, y_pred)
+  f1 = f1_score(test_y, y_pred, average=average)
+  precision = precision_score(test_y, y_pred, average=average, zero_division=0)
+  recall = recall_score(test_y, y_pred, average=average, zero_division=0)
+  roc_auc = roc_auc_score(test_y, y_pred_proba, average=average, multi_class=multi_class)
+
+  #Binarise output in one vs all fashion (one group compared to two others)
+  y_test_binary = label_binarize(test_y, classes=knn.classes_)
+
+  roc_cur = roc_curve(y_test_binary.ravel(), y_pred_proba.ravel())
+
+  cm = confusion_matrix(y_true=test_y, y_pred=y_pred, normalize='true')
+
+  modelResults(knn, accuracy, f1, precision, recall, roc_auc, roc_cur, cm)
+
+#Random forest 
+def trainRF(X, y, test_size=0.2, max_depth=4):
+
+  # Step 1: we use the same train-test split as above
+  train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=test_size, stratify=y, random_state=380)
+
+  from sklearn.preprocessing import label_binarize
+
+  # Step 2: Pick the algorithm
+  RF = RandomForestClassifier(max_depth=max_depth, random_state=380, class_weight='balanced')
+
+  # Step 3: Train the classifier
+  RF.fit(train_X, train_y)
+
+  # Step 4: Make a prediction
+  y_pred = RF.predict(test_X)
+  y_pred_proba = RF.predict_proba(test_X)
+
+  #Cross validation:
+  cv_value = 5
+  cv_scores = cross_val_score(RF, train_X, train_y, scoring='accuracy', cv=cv_value)
+
+  # Step 4: Make a prediction
+  prediction = cross_val_predict(RF, test_X, test_y, cv=cv_value)
+
+  # Step 5: Evaluate the prediction
+  st.write('Used model is: {}-----------'.format(RF))
+  st.write('classifier stored as "RF"')
+  st.text(classification_report(test_y, y_pred, zero_division=0))
+  st.write(f"Cross validation score: {cv_scores.mean().round(2)} accuracy with a standard deviation of {cv_scores.std().round(2)}")
+
+  cm = confusion_matrix(y_true=test_y, y_pred=y_pred, normalize='true')
+
+  fig, ax = plt.subplots()
+  disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=RF.classes_)
+  disp.plot(ax=ax)
+  st.pyplot(fig)
+
+  #Make extra section for table that contains all important information for AUC curve
+  average='macro'
+  multi_class='ovo'
+
+  accuracy = accuracy_score(test_y, y_pred)
+  f1 = f1_score(test_y, y_pred, average=average)
+  precision = precision_score(test_y, y_pred, average=average, zero_division=0)
+  recall = recall_score(test_y, y_pred, average=average, zero_division=0)
+  roc_auc = roc_auc_score(test_y, y_pred_proba, average=average, multi_class=multi_class)
+
+  y_test_binary = label_binarize(test_y, classes=RF.classes_)
+  roc_cur = roc_curve(y_test_binary.ravel(), y_pred_proba.ravel())
+
+  cm = confusion_matrix(y_true=test_y, y_pred=y_pred, normalize='true')
+
+  modelResults(RF, accuracy, f1, precision, recall, roc_auc, roc_cur, cm)
+
+st.subheader("Comparison of predictive models")
+
+# Interactive modelling with outcomes
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    run_lr = st.button("Run Logistic Regression")
+with col2:
+    run_knn = st.button("Run KNN")
+with col3:
+    run_rf = st.button("Run Random Forest")
+
+if run_lr:
+    trainLogReg(X_selected, y_selected)
+
+if run_knn:
+    trainKNN(X_selected, y_selected)
+
+if run_rf:
+    trainRF(X_selected, y_selected)
+
+# Show results table if anything has been run
+if len(resultsTable) > 0:
+    st.subheader("Results table")
+    st.dataframe(
+        resultsTable.drop(columns=["ROC", "cm"]),
+        use_container_width=True
+    )
+
+    # Best model by F1
+    best_model = resultsTable.loc[
+        resultsTable['F1 Score'].idxmax()
+    ]
+    st.write(
+        f"The model with the highest F1 score was "
+        f"**{best_model['Model']}** "
+        f"with an F1 score of **{best_model['F1 Score']:.4f}**"
+    )
+
+    # ROC curves comparison
+    st.subheader("ROC Curves - Model Comparison")
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    for _, row in resultsTable.iterrows():
+        model_name = row['Model']
+        fpr, tpr, _ = row['ROC']
+        roc_auc = row['ROC_AUC']
+        ax.plot(
+            fpr, tpr, lw=2,
+            label=f'{model_name} (AUC = {roc_auc:.3f})'
+        )
+
+    ax.plot(
+        [0, 1], [0, 1],
+        'k--', lw=2,
+        label='Random Classifier (AUC = 0.500)'
+    )
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.0])
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate')
+    ax.set_title('ROC Curves - Model Comparison')
+    ax.legend(loc="lower right")
+    ax.grid(True)
+
+    st.pyplot(fig)
+
+
+
+
+
 st.title('References')
 st.write(' 1. World Health Organisation (2025), "Cardiovascular diseases (CVDs)", pls check how to do manual reference https://www.who.int/news-room/fact-sheets/detail/cardiovascular-diseases-(cvds)')
 
