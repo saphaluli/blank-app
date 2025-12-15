@@ -19,48 +19,58 @@ from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, roc_curve, RocCurveDisplay, precision_recall_curve
 
-st.title("🤍 Predicting onset of Cardiovascular disease from data?")
-st.write(
-    "Let's start building! For help and inspiration, head over to [docs.streamlit.io](https://docs.streamlit.io/)."
-)
+st.title("🤍 Predicting onset of Cardiovascular disease")
 
+st.caption('By Julie Kretzers (i6354327) and Vanille Claessen (i6339543)')
 st.title('Introduction')
 st.subheader('Cardiovascular disease and research aim')
 #first paraphraph
 st.write('Cardiovascular disease (CVD) is the leading cause of death globally, accounting for' \
-' approximately 38\% of global deaths (1, WHO (2025). The term CVD includes a range of diseases, such as stroke,' \
+' approximately 38\% of global deaths. The term CVD includes a range of diseases, such as stroke,' \
 ' heart attack or peripheral arterial disease. CVD is often caused by a combination of unhealthy' \
 ' lifestyle factors. Early detection of patients with high risk of developing CVD is therefore very' \
 ' important, as modifying lifestyle factors can greatly decrease the risk of developing a disease under the CVD umbrella.'
 )
 #Second paragraph - research aim/description of model
-st.write('Through the use of data analysis and different AI/machine learning approaches, this project' \
+st.write('Through the use of data analysis and different AI/machine learning approaches, this project ' \
 'aims to quantify which baseline factors are associated with earlier developments of CVD, and whether this ' \
 ' risk can be predicted accurately through these factors.')
 
-st.title('Methodology: Preperation of our data')
+st.title('Methodology: Preparation of our data')
 st.subheader('Data source')
-st.write('The data used for our analysis and machine learning models are sourced from the Framingham Heart Study'
-' (2, add reference to the datset). Add more stuff about the dataset, when, what is measured etc.')
+st.write(
+    "The dataset used in this project is derived from the Framingham Heart Study, a large, "
+    "long-running prospective cohort study initiated in 1948 to investigate risk factors "
+    "for cardiovascular disease. The study includes repeated clinical examinations and "
+    "lifestyle measurements of adult participants, with follow-up spanning multiple decades. "
+    "For the present analysis, only baseline measurements (Period 1) were used to avoid data "
+    "leakage and to ensure that all predictors reflect pre-disease information."
+)
 
 # This is the second parapgraph about which variables we selected and why.
 st.subheader('Data selection')
-st.write('We selected the following features based on.... data leakage. ')
-"""
-- Age
-- Sex (male, female)
-- Systolic blood pressure
-- Diastolic blood pressure
-- Total cholesterol
-- BMI
-- Smoking status (smoker, non-smoker)
-- Cigaretted smoked per day
-- Diabetes (yes, no)
-- Glucose levels
-- Taking blood pressure medication (yes/no)
-- Is hypertensive (yes/no)
-- Heart rate
-"""
+st.write(
+    "The variables below were selected because they represent baseline, routinely collected cardiovascular "
+    "risk factors and are available at the first examination period. Variables that directly reflect existing "
+    "cardiovascular disease status (e.g., prevalent CHD/MI/stroke) were excluded to reduce the risk of data leakage."
+)
+
+st.markdown("""
+- Age  
+- Sex (male/female)  
+- Systolic blood pressure  
+- Diastolic blood pressure  
+- Total cholesterol  
+- BMI  
+- Smoking status (smoker/non-smoker)  
+- Cigarettes smoked per day  
+- Diabetes (yes/no)  
+- Glucose levels  
+- Blood pressure medication use (yes/no)  
+- Hypertension status (yes/no)  
+- Heart rate  
+""")
+
 st.write(
     "The original CVD variable in the dataset is coded retrospectively, meaning that participants "
     "who developed cardiovascular disease at any point during follow-up were marked as having CVD "
@@ -130,9 +140,10 @@ st.write('We imputed the following variables: ')
 ## ON BPMEDS imputation
 st.write('For the feature Blood pressure medication, we imputed missing values based on' \
 ' whether the patient was hypertensive or not.')
-"""
-- If the patient is not hypertensive -> impute as 0 (not taking medication)
-- If the patient is hypertensive -> drop these patients (only small percentage missing, cannot know whether they took medication or not)"""
+st.markdown("""
+- If a participant was **not hypertensive**, missing values for blood pressure medication were imputed as **0** (not using medication).  
+- If a participant was **hypertensive** and blood pressure medication was missing, these records were **excluded**, as medication use could not be reliably inferred.
+""")
 
 ### Making new imputed df
 cvd_imputed = cvd[cols].copy()
@@ -148,8 +159,17 @@ cvd_imputed.loc[
 cvd_imputed = cvd_imputed.dropna(subset=['BPMEDS'])
 
 ### Impute smoking status
-st.write('A similar logic was used for missing in cigarettes smoked per day, where non-smokers with missing' \
-' amount of cigerattes smoked per day were imputed as 0.')
+st.write(
+    "A similar rule-based approach was applied to missing values for cigarettes smoked per day, "
+    "using smoking status to guide imputation."
+)
+
+st.markdown("""
+- If a participant was a **non-smoker**, missing values for cigarettes smoked per day were imputed as **0**.  
+- If a participant was a **current smoker** and the number of cigarettes smoked per day was missing, 
+  the value was imputed using the **median number of cigarettes smoked among smokers**.
+""")
+
 #If someone is no smoker (0) and CIGPDAY is missing --> impute with 0
 cvd_imputed.loc[
     (cvd_imputed['CURSMOKE'] == 0) & (cvd_imputed['CIGPDAY'].isna()),
@@ -158,8 +178,11 @@ cvd_imputed.loc[
 
 ### impute continuous variables
 
-st.write('The method of imputations for continuous variables'
-' (glucose levels, total cholesterol, BMI, heart rate, cigarettes smoked per day (if person was smoker)) was done using the median.')
+st.write(
+    "Missing values for continuous variables were imputed using the median, as this approach "
+    "is robust to skewed distributions commonly observed in clinical data."
+)
+
 #GLUCOSE, TOTCHOL, BMI, HEARTRTE -> impute with median
 num_cols_median = ["GLUCOSE", "TOTCHOL", "BMI", "HEARTRTE"]
 
@@ -181,8 +204,9 @@ cvd_imputed.loc[
 assert cvd_imputed.isna().sum().sum() == 0 
 
 st.subheader('Erroneous data')
-st.write('Erroneous data was selected based on blah blah blah. Below is a summary of erroneous datapoints.' \
-' The following threshholds were used:')
+st.write( "Potentially erroneous values were identified based on biologically implausible ranges "
+    "reported in clinical literature. The thresholds below were used to flag extreme values."
+)
 """
 - Systolic blood pressure (SYSBP): 70-250 mmHg
 - Diastolic blood pressure (DIABP): 40-120 mmHg
@@ -205,13 +229,13 @@ for col, (low, high) in erroneous_checks.items():
     if len(invalid) > 0:
       st.write(f"{col}: has {len(invalid)} values not in accordance with biology.")
 
-st.write('All erroneous datapoints were winsorised to the closest biologically plausible values as indicated'
-' by the threshholds described above.' \
+st.write('All erroneous datapoints were winsorized to the closest biologically plausible values as indicated'
+' by the thresholds described above.' \
 ' It should be noted that these values are still quite extreme and may have underlying issues in measurement,' \
 ' protocol or other. ')
 
 #Winsorising
-#Utilising threshholds described in text
+#Utilising thresholds described in text
 cvd_imputed.loc[cvd_imputed['SYSBP'] > 250, 'SYSBP'] = 250
 cvd_imputed.loc[cvd_imputed['DIABP'] < 40, 'DIABP'] = 40
 cvd_imputed.loc[cvd_imputed['DIABP'] > 120, 'DIABP'] = 120
@@ -361,7 +385,7 @@ st.caption('Figure 3: Proportions of outcome variable categories. 0 = never deve
 ', 2 = developed CVD late (within 24 years).')
 
 st.subheader('Population characteristics')
-st.write('Below are a summary of basic descriptive statistics. Please note that all descriptive statistics are taken on the imputed, but not log-transformed dataset')
+st.write('Below is a summary of basic descriptive statistics. Please note that all descriptive statistics are taken on the imputed, but not log-transformed dataset')
 
 #TABEL 1 - Numerical descriptive statistics
 #adding median as well
@@ -861,12 +885,13 @@ if len(resultsTable) > 0:
     st.pyplot(fig)
 
 st.subheader('Hyperparameter Optimisation')
-st.write('To further enhance model performance, we iterate through a range of hyperparaneters' \
- ' for KNN and Random Forest models. (logistic regression does not have signiificant hyperparameters to tune)'
- ' The optimal hyperparameters are selected based on F1 score. The F1 score was specifically selected'
- ' as risk assessment for CVD development (i.e. to allocate preventive measures) requires both good recall'
- ' and precision, as not to overload healthcare providers with much burden while also detecting as many cases'
- ' as possible.')
+st.write(
+    "To further improve model performance, a range of hyperparameters was evaluated for the "
+    "KNN and Random Forest models. Logistic regression was not included, as it has limited "
+    "hyperparameter sensitivity in this context. Model selection was based on the F1 score, "
+    "which balances precision and recall and is therefore appropriate for cardiovascular risk "
+    "prediction, where both false positives and false negatives are undesirable."
+)
 
 st.write('The following range of hyperparameters were tested:')
 """
@@ -920,7 +945,7 @@ def trainRF_hyperparameters(X, y, test_size=0.2, max_depth=4, min_samples_leaf=1
   recall = recall_score(test_y, y_pred, average=average)
   roc_auc = roc_auc_score(test_y, y_pred_proba, average=average, multi_class=multi_class)
 
-  #To get ROC curve we need fpr, tpr, threshholds, this can only be done with binary
+  #To get ROC curve we need fpr, tpr, thresholds, this can only be done with binary
   #Binarise output in one vs all fashion (one group compared to two others)
   y_test_binary = label_binarize(test_y, classes=RF.classes_)
 
@@ -972,7 +997,7 @@ def trainKNN_hyperparameters(X, y, neighbors = 5, test_size=0.2):
   recall = recall_score(test_y, y_pred, average=average)
   roc_auc = roc_auc_score(test_y, y_pred_proba, average=average, multi_class=multi_class)
 
-  #To get ROC curve we need fpr, tpr, threshholds, this can only be done with binary
+  #To get ROC curve we need fpr, tpr, thresholds, this can only be done with binary
   #Binarise output in one vs all fashion (one group compared to two others)
   y_test_binary = label_binarize(test_y, classes=knn.classes_)
 
@@ -1036,7 +1061,22 @@ ax.grid()
 
 st.pyplot(fig)
 
-st.title('References')
-st.write(' 1. World Health Organisation (2025), "Cardiovascular diseases (CVDs)", https://www.who.int/news-room/fact-sheets/detail/cardiovascular-diseases-(cvds)')
+st.title('Conclusion')
 
+st.write(
+    "In this project, machine learning models were used to predict the timing of cardiovascular disease "
+    "onset based on baseline clinical and lifestyle factors. By redefining the outcome variable into early, "
+    "late, and no CVD development, limitations of the original retrospective CVD coding were addressed, "
+    "enabling clearer differentiation between early and late disease onset. Feature selection and "
+    "comparative modelling indicated that age, blood pressure–related variables, and metabolic factors "
+    "were most strongly associated with earlier CVD development."
+)
 
+st.write(
+    "Although overall predictive performance was moderate, the **Random Forest classifier "
+    "(RandomForestClassifier(class_weight='balanced', max_depth=4, random_state=380))** achieved the highest "
+    "F1 score among the evaluated models, outperforming logistic regression and k-nearest neighbours. "
+    "This indicates that, within the limitations of the dataset and outcome definition, non-linear "
+    "relationships between predictors and CVD onset timing were captured most effectively by the "
+    "Random Forest model."
+)
