@@ -31,6 +31,8 @@ st.write('Cardiovascular disease (CVD) is the leading cause of death globally, a
 ' lifestyle factors. Early detection of patients with high risk of developing CVD is therefore very' \
 ' important, as modifying lifestyle factors can greatly decrease the risk of developing a disease under the CVD umbrella.'
 )
+st.write('Previous analysis from this dataset has concluded that neither blood pressure medication and systolic blood pressure' \
+' were not good indicators for predicting CVD development. This was explained due to the dataset\'s age and limitations in equipment.')
 #Second paragraph - research aim/description of model
 st.write('Through the use of data analysis and different AI/machine learning approaches, this project ' \
 'aims to quantify which baseline factors are associated with earlier developments of CVD, and whether this ' \
@@ -52,7 +54,8 @@ st.subheader('Data selection')
 st.write(
     "The variables below were selected because they represent baseline, routinely collected cardiovascular "
     "risk factors and are available at the first examination period. Variables that directly reflect existing "
-    "cardiovascular disease status (e.g., prevalent CHD/MI/stroke) were excluded to reduce the risk of data leakage."
+    "cardiovascular disease status (e.g., prevalent CHD/MI/stroke) were excluded to reduce the risk of data leakage"
+    " as having these conditions was a condition for the CVD variable."
 )
 
 st.markdown("""
@@ -1071,12 +1074,16 @@ st.write(
     "comparative modelling indicated that age, blood pressure–related variables, and metabolic factors "
     "were most strongly associated with earlier CVD development."
 )
-
+st.write('Model limitations mainly originate from the model\'s general inability to distinguish' \
+' between early and late CVD onset, as is indicated by confusion matrices and F1 score.' \
+' This can be explained biologically as the difference between baseline values (our measurement) may not differ' \
+' much between those who develop CVD close in time (i.e. 6 & 7 years), or those who develop late very late (i.e. after 20 years).')
 st.write(
     "Although overall predictive performance was moderate, the **Random Forest classifier "
     "(RandomForestClassifier(class_weight='balanced', max_depth=4, random_state=380))** achieved the highest "
     "F1 score among the evaluated models, outperforming logistic regression and k-nearest neighbours. "
     "This indicates that, within the limitations of the dataset and outcome definition, non-linear "
     "relationships between predictors and CVD onset timing were captured most effectively by the "
-    "Random Forest model."
+    "Random Forest model. Still, model performance were overall quite similar when compared to a simple" \
+    " logistic regression model as a benchmark."
 )
