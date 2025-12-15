@@ -738,15 +738,15 @@ def trainKNN(X, y, neighbors=5, test_size=0.2):
   modelResults(knn, accuracy, f1, precision, recall, roc_auc, roc_cur, cm)
 
 #Random forest 
-def trainRF(X, y, test_size=0.2, max_depth=4):
+def trainRF(X, y, test_size = 0.2, max_depth = 4, min_samples_leaf = 1):
 
   # Step 1: we use the same train-test split as above
-  train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=test_size, stratify=y, random_state=380)
+  train_X, test_X, train_y, test_y = train_test_split(X, y, test_size = test_size, stratify = y, random_state = 380)
 
   from sklearn.preprocessing import label_binarize
 
   # Step 2: Pick the algorithm
-  RF = RandomForestClassifier(max_depth=max_depth, random_state=380, class_weight='balanced')
+  RF = RandomForestClassifier(max_depth = max_depth, min_samples_leaf = min_samples_leaf, random_state=380, class_weight='balanced')
 
   # Step 3: Train the classifier
   RF.fit(train_X, train_y)
@@ -860,11 +860,182 @@ if len(resultsTable) > 0:
 
     st.pyplot(fig)
 
+st.subheader('Hyperparameter Optimisation')
+st.write('To further enhance model performance, we iterate through a range of hyperparaneters' \
+ ' for KNN and Random Forest models. (logistic regression does not have signiificant hyperparameters to tune)'
+ ' The optimal hyperparameters are selected based on F1 score. The F1 score was specifically selected'
+ ' as risk assessment for CVD development (i.e. to allocate preventive measures) requires both good recall'
+ ' and precision, as not to overload healthcare providers with much burden while also detecting as many cases'
+ ' as possible.')
+
+st.write('The following range of hyperparameters were tested:')
+"""
+- KNN: number of neighbors from 1 to 20
+- Random Forest: max depth from 2 to 7, min samples leaf as 1 or 10 (mainly to avoid overfitting)
+"""
+
+### REDEFINING SOME TRAINING FUNCTIONS FOR HYPERPARAMETER OPTIMISATION
+##Removing the text part so it doesn't flood the screen
+
+def modelResults_hyperparameters(model, accuracy, f1, precision, recall, roc_auc, roc_cur, cm):
+    resultsTable.loc[len(resultsTable)] = [model, accuracy, f1, precision, recall, roc_auc, roc_cur, cm]
+
+def trainRF_hyperparameters(X, y, test_size=0.2, max_depth=4, min_samples_leaf=1):
+
+  # Step 1: we use the same train-test split as above
+  train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=test_size, stratify=y, random_state=380)
+
+  from sklearn.preprocessing import label_binarize
+
+  # Step 2: Pick the algorithm
+  RF = RandomForestClassifier(max_depth=max_depth, min_samples_leaf=min_samples_leaf, random_state=380, class_weight='balanced')
+
+  # Step 3: Train the classifier
+  RF.fit(train_X, train_y)
+
+  # Step 4: Make a prediction
+  y_pred = RF.predict(test_X)
+  y_pred_proba = RF.predict_proba(test_X) #For ROC curve specifically
+
+  #Cross validation:
+  cv_value = 5
+  cv_scores = cross_val_score(RF, train_X, train_y, scoring='accuracy', cv=cv_value)
+
+  # Step 4: Make a prediction
+  prediction = cross_val_predict(RF, test_X, test_y, cv=cv_value)
 
 
+  cm = confusion_matrix(y_true=test_y,
+                  y_pred=y_pred,
+                  normalize='true')
 
+  #Make extra section for table that contains all important information for AUC curve
+  average='macro' #setting since we do not have binary classification problem anymore
+                  #important to use macro since this does not consider class imbalance (basically weighs classes all the same)
+  multi_class='ovo' #one vs one, makes it insensitive to class imbalance if average=macro
+
+  accuracy = accuracy_score(test_y, y_pred)
+  f1 = f1_score(test_y, y_pred, average=average)
+  precision = precision_score(test_y, y_pred, average=average)
+  recall = recall_score(test_y, y_pred, average=average)
+  roc_auc = roc_auc_score(test_y, y_pred_proba, average=average, multi_class=multi_class)
+
+  #To get ROC curve we need fpr, tpr, threshholds, this can only be done with binary
+  #Binarise output in one vs all fashion (one group compared to two others)
+  y_test_binary = label_binarize(test_y, classes=RF.classes_)
+
+  #This should be micro-averaged, so keep in mind class imbalance has effect
+  roc_cur = roc_curve(y_test_binary.ravel(), y_pred_proba.ravel())
+
+  cm = confusion_matrix(y_true=test_y, y_pred=y_pred, normalize='true')
+
+  modelResults_hyperparameters(RF, accuracy, f1, precision, recall, roc_auc, roc_cur, cm)#add roc_cur after roc_auc for binary problem
+
+def trainKNN_hyperparameters(X, y, neighbors = 5, test_size=0.2):
+  # Step 1: we use the same train-test split as above
+  train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=test_size, stratify=y, random_state=380)
+
+  from sklearn.preprocessing import label_binarize
+
+  # Step 2: Pick the algorithm
+  # TODO: HOW DO WE DEFINE THE CLASSIFIER?
+  ### YOUR CODE HERE
+  knn = KNeighborsClassifier(n_neighbors=neighbors, weights='uniform')
+
+  # Step 3: Train the classifier
+  knn = knn.fit(train_X, train_y)
+
+  # Step 4: Make a prediction
+  y_pred = knn.predict(test_X)
+  y_pred_proba = knn.predict_proba(test_X) #For ROC curve specifically
+
+  #Cross validation:
+  cv_value = 5
+  cv_scores = cross_val_score(knn, train_X, train_y, scoring='accuracy', cv=cv_value)
+
+  # Step 4: Make a prediction
+  prediction = cross_val_predict(knn, test_X, test_y, cv=cv_value)
+
+  cm = confusion_matrix(y_true=test_y,
+                  y_pred=y_pred,
+                  normalize='true')
+
+
+  #Make extra section for table that contains all important information for AUC curve
+  average='macro' #setting since we do not have binary classification problem anymore
+                  #important to use macro since this does not consider class imbalance (basically weighs classes all the same)
+  multi_class='ovo' #one vs one, makes it insensitive to class imbalance if average=macro
+
+  accuracy = accuracy_score(test_y, y_pred)
+  f1 = f1_score(test_y, y_pred, average=average)
+  precision = precision_score(test_y, y_pred, average=average)
+  recall = recall_score(test_y, y_pred, average=average)
+  roc_auc = roc_auc_score(test_y, y_pred_proba, average=average, multi_class=multi_class)
+
+  #To get ROC curve we need fpr, tpr, threshholds, this can only be done with binary
+  #Binarise output in one vs all fashion (one group compared to two others)
+  y_test_binary = label_binarize(test_y, classes=knn.classes_)
+
+  #This should be micro-averaged, so keep in mind class imbalance has effect
+  roc_cur = roc_curve(y_test_binary.ravel(), y_pred_proba.ravel())
+
+  cm = confusion_matrix(y_true=test_y, y_pred=y_pred, normalize='true')
+
+  modelResults_hyperparameters(knn, accuracy, f1, precision, recall, roc_auc, roc_cur, cm)#add roc_cur after roc_auc for binary problem
+
+
+### FUNCTIONS FOR OUR ITERATIONS BETWEEN HYPERPARAMETERS
+def hyperparameter_KNN(max_neighbours):
+  for i in range (4, max_neighbours + 1):
+    trainKNN_hyperparameters(X, y, neighbors = i, test_size=0.2)
+
+def hyperparameter_RF(max_depth, min_samples_leaf):
+  for i in range(2, max_depth):
+    trainRF_hyperparameters(X, y, max_depth=i, min_samples_leaf=min_samples_leaf)
+
+### HYPERPARAMETER ITERATIONS
+hyperparameter_KNN(10)
+hyperparameter_RF(5, 10) #second argument is the min samples leaf
+hyperparameter_RF(5, 1)
+
+## removing duplicate rows if they were created by accident
+#removing accidental duplicate models
+resultsTable = resultsTable.drop_duplicates(subset=['Model']) #, 'Accuracy', 'F1 Score', 'Precision', 'Recall', 'ROC_AUC'
+
+#Top model
+best_model = resultsTable.loc[resultsTable['F1 Score'].idxmax()]
+st.write(f"The model with the highest F1 score was {best_model['Model']} with an F1 score of {best_model['F1 Score']:.4f}")
+
+st.write('Below is a table summarizing the top 3 performing models (ranked by F1 score), including logistic regression as a benchmark.')
+
+#Table
+top3_models = resultsTable.sort_values(by='F1 Score', ascending=False).head(3)
+top3_models = pd.concat([top3_models, resultsTable.head(1)])
+top3_models['Model'] = top3_models['Model'].astype(str)
+st.dataframe(top3_models.drop(labels='cm', axis=1)) #For some reason, only in streamlit the cm column caused issues
+
+fig, ax = plt.subplots(figsize=(10, 10)) #Redo this so it uses correct style, took this from previous project and only made it work so far
+
+for idx, row in top3_models.iterrows():
+    model_name = str(row['Model']).split('(')[0]
+    fpr, tpr, thresholds = row['ROC']
+    roc_auc = row['ROC_AUC']
+    ax.plot(fpr, tpr, lw=2, label=f'{model_name} (AUC = {roc_auc:.3f})')
+
+
+ax.plot([0, 1], [0, 1], 'k--', lw=2, label='Random Classifier (AUC = 0.500)')
+ax.set_xlim([0.0, 1.0])
+ax.set_ylim([0.0, 1.0])
+ax.set_xlabel('False Positive Rate', fontsize=12)
+ax.set_ylabel('True Positive Rate', fontsize=12)
+ax.set_title('ROC Curves - Model Comparison', fontsize=14)
+ax.legend(loc="lower right", fontsize=15)
+fig.tight_layout()
+ax.grid()
+
+st.pyplot(fig)
 
 st.title('References')
-st.write(' 1. World Health Organisation (2025), "Cardiovascular diseases (CVDs)", pls check how to do manual reference https://www.who.int/news-room/fact-sheets/detail/cardiovascular-diseases-(cvds)')
+st.write(' 1. World Health Organisation (2025), "Cardiovascular diseases (CVDs)", https://www.who.int/news-room/fact-sheets/detail/cardiovascular-diseases-(cvds)')
 
 
