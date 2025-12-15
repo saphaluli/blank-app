@@ -1022,6 +1022,7 @@ for idx, row in top3_models.iterrows():
     roc_auc = row['ROC_AUC']
     ax.plot(fpr, tpr, lw=2, label=f'{model_name} (AUC = {roc_auc:.3f})')
 
+st.write('The same models are compared below using ROC curves:')
 
 ax.plot([0, 1], [0, 1], 'k--', lw=2, label='Random Classifier (AUC = 0.500)')
 ax.set_xlim([0.0, 1.0])
